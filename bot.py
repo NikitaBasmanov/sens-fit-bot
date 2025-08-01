@@ -60,10 +60,16 @@ class UserStates(StatesGroup):
     waiting_for_height = State()
     waiting_for_front_photo = State()
     waiting_for_profile_photo = State()
+    # Новые состояния для квиза
+    waiting_for_quiz_comfortable_bra = State()
+    waiting_for_quiz_current_size = State()
     waiting_for_quiz_underbust = State()
     waiting_for_quiz_bust = State()
-    waiting_for_quiz_style = State()
-    waiting_for_quiz_comfort = State()
+    waiting_for_quiz_breast_shape = State()
+    waiting_for_quiz_bra_type = State()
+    waiting_for_quiz_priority = State()
+    waiting_for_quiz_skin_tone = State()
+    waiting_for_quiz_calculate = State()
     waiting_for_feedback = State()
 
 # Хранилище данных пользователей
@@ -331,9 +337,41 @@ async def handle_profile_photo(message: Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == "method_quiz")
 async def handle_method_quiz(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора квиза"""
-    await state.set_state(UserStates.waiting_for_quiz_underbust)
-    await callback.message.edit_text("Введите обхват под грудью (см):")
+    await state.set_state(UserStates.waiting_for_quiz_comfortable_bra)
+    question_text = "Есть ли у вас сейчас бюстгальтер, который сидит комфортно?"
+    keyboard = create_keyboard(
+        ("👍 Да", "quiz_comfortable_yes"),
+        ("👎 Нет", "quiz_comfortable_no")
+    )
+    await callback.message.edit_text(question_text, reply_markup=keyboard)
     await callback.answer()
+
+@dp.callback_query(lambda c: c.data.startswith("quiz_comfortable_"))
+async def handle_comfortable_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора удобного бюстгальтера"""
+    user_id = callback.from_user.id
+    comfortable_type = callback.data.split("_")[2]
+    user_data[user_id]['quiz_data']['comfortable_bra'] = comfortable_type
+    
+    if comfortable_type == "yes":
+        # Если есть удобный бюстгальтер
+        await state.set_state(UserStates.waiting_for_quiz_current_size)
+        await callback.message.edit_text("Укажите его размер (пример: 75C).")
+    else:
+        # Если нет удобного бюстгальтера
+        await state.set_state(UserStates.waiting_for_quiz_underbust)
+        await callback.message.edit_text("Возьмите сантиметровую ленту. Измерьте под грудью (плотно). Введите число в см.")
+    await callback.answer()
+
+@dp.message(UserStates.waiting_for_quiz_current_size)
+async def handle_current_size_input(message: Message, state: FSMContext):
+    """Обработка ввода текущего размера"""
+    current_size = message.text.strip()
+    user_id = message.from_user.id
+    user_data[user_id]['quiz_data']['current_size'] = current_size
+    
+    await state.set_state(UserStates.waiting_for_quiz_underbust)
+    await message.answer("Возьмите сантиметровую ленту. Измерьте под грудью (плотно). Введите число в см.")
 
 @dp.message(UserStates.waiting_for_quiz_underbust)
 async def handle_underbust_input(message: Message, state: FSMContext):
@@ -360,38 +398,143 @@ async def handle_bust_input(message: Message, state: FSMContext):
             user_id = message.from_user.id
             user_data[user_id]['quiz_data']['bust'] = bust
             
-            await state.set_state(UserStates.waiting_for_quiz_style)
-            await message.answer("Выберите стиль бюстгальтера:", reply_markup=create_keyboard(
-                ("Классический", "style_classic"),
-                ("Спортивный", "style_sport"),
-                ("Кружевной", "style_lace")
+            await state.set_state(UserStates.waiting_for_quiz_breast_shape)
+            await message.answer("Как бы вы описали форму груди?", reply_markup=create_keyboard(
+                ("🔻 Широкая база", "breast_shape_wide"),
+                ("🔸 Узкая / объёмная", "breast_shape_narrow"),
+                ("🔹 Низкий посад", "breast_shape_low"),
+                ("❔ Не знаю", "breast_shape_unknown")
             ))
         else:
             await message.answer("Пожалуйста, введите число от 70 до 140 см.")
     except ValueError:
         await message.answer("Пожалуйста, введите число.")
 
-@dp.callback_query(lambda c: c.data.startswith("style_"))
-async def handle_style_choice(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора стиля"""
+@dp.callback_query(lambda c: c.data.startswith("breast_shape_"))
+async def handle_breast_shape_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора формы груди"""
     user_id = callback.from_user.id
-    style = callback.data.split("_")[1]
-    user_data[user_id]['quiz_data']['style'] = style
+    breast_shape = callback.data.split("_")[2]
+    user_data[user_id]['quiz_data']['breast_shape'] = breast_shape
     
-    await state.set_state(UserStates.waiting_for_quiz_comfort)
-    await callback.message.edit_text("Выберите уровень комфорта:", reply_markup=create_keyboard(
-        ("Комфорт", "comfort_comfort"),
-        ("Средний", "comfort_medium"),
-        ("Плотный", "comfort_tight")
+    await state.set_state(UserStates.waiting_for_quiz_bra_type)
+    await callback.message.edit_text("Какой тип бюстгальтера предпочитаете?", reply_markup=create_keyboard(
+        ("👙 Бралетт", "bra_type_bralette"),
+        ("💪 Спортивный", "bra_type_sport"),
+        ("💎 Классический", "bra_type_classic"),
+        ("🚀 Лёгкий push-up", "bra_type_pushup")
     ))
     await callback.answer()
 
-@dp.callback_query(lambda c: c.data.startswith("comfort_"))
-async def handle_comfort_choice(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора комфорта и расчет размера"""
+@dp.callback_query(lambda c: c.data.startswith("bra_type_"))
+async def handle_bra_type_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора типа бюстгальтера"""
     user_id = callback.from_user.id
-    comfort = callback.data.split("_")[1]
-    user_data[user_id]['quiz_data']['comfort'] = comfort
+    bra_type = callback.data.split("_")[2]
+    user_data[user_id]['quiz_data']['bra_type'] = bra_type
+    
+    await state.set_state(UserStates.waiting_for_quiz_priority)
+    await callback.message.edit_text("Что для вас важнее всего?", reply_markup=create_keyboard(
+        ("☁️ Комфорт", "priority_comfort"),
+        ("👁 Эстетика", "priority_aesthetics"),
+        ("🤸‍♀️ Поддержка", "priority_support")
+    ))
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data.startswith("priority_"))
+async def handle_priority_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора приоритета"""
+    user_id = callback.from_user.id
+    priority = callback.data.split("_")[1]
+    user_data[user_id]['quiz_data']['priority'] = priority
+    
+    await state.set_state(UserStates.waiting_for_quiz_skin_tone)
+    await callback.message.edit_text("Ваш оттенок кожи ближе к…", reply_markup=create_keyboard(
+        ("🌕 Светлый", "skin_tone_light"),
+        ("🏽 Средний", "skin_tone_medium"),
+        ("🏿 Тёмный", "skin_tone_dark")
+    ))
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data.startswith("skin_tone_"))
+async def handle_skin_tone_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора тона кожи"""
+    user_id = callback.from_user.id
+    skin_tone = callback.data.split("_")[2]
+    user_data[user_id]['quiz_data']['skin_tone'] = skin_tone
+    
+    # Получаем все данные квиза для отображения
+    quiz_data = user_data[user_id]['quiz_data']
+    
+    # Создаем текст с выбранными пунктами
+    summary_text = "📋 Ваши ответы:\n\n"
+    
+    # Добавляем каждый выбранный пункт
+    if 'comfortable_bra' in quiz_data:
+        comfortable_text = "👍 Да" if quiz_data['comfortable_bra'] == 'yes' else "👎 Нет"
+        summary_text += f"• Есть ли комфортный бюстгальтер: {comfortable_text}\n"
+    
+    if 'current_size' in quiz_data:
+        summary_text += f"• Текущий размер: {quiz_data['current_size']}\n"
+    
+    if 'underbust' in quiz_data:
+        summary_text += f"• Обхват под грудью: {quiz_data['underbust']} см\n"
+    
+    if 'bust' in quiz_data:
+        summary_text += f"• Обхват груди: {quiz_data['bust']} см\n"
+    
+    if 'breast_shape' in quiz_data:
+        shape_map = {
+            'wide': "🔻 Широкая база",
+            'narrow': "🔸 Узкая / объёмная", 
+            'low': "🔹 Низкий посад",
+            'unknown': "❔ Не знаю"
+        }
+        summary_text += f"• Форма груди: {shape_map.get(quiz_data['breast_shape'], quiz_data['breast_shape'])}\n"
+    
+    if 'bra_type' in quiz_data:
+        type_map = {
+            'bralette': "👙 Бралетт",
+            'sport': "💪 Спортивный",
+            'classic': "💎 Классический",
+            'pushup': "🚀 Лёгкий push-up"
+        }
+        summary_text += f"• Тип бюстгальтера: {type_map.get(quiz_data['bra_type'], quiz_data['bra_type'])}\n"
+    
+    if 'priority' in quiz_data:
+        priority_map = {
+            'comfort': "☁️ Комфорт",
+            'aesthetics': "👁 Эстетика",
+            'support': "🤸‍♀️ Поддержка"
+        }
+        summary_text += f"• Приоритет: {priority_map.get(quiz_data['priority'], quiz_data['priority'])}\n"
+    
+    if 'skin_tone' in quiz_data:
+        tone_map = {
+            'light': "🌕 Светлый",
+            'medium': "🏽 Средний", 
+            'dark': "🏿 Тёмный"
+        }
+        summary_text += f"• Тон кожи: {tone_map.get(quiz_data['skin_tone'], quiz_data['skin_tone'])}\n"
+    
+    # Отправляем сообщение с выбранными пунктами
+    await callback.message.edit_text(summary_text)
+    
+    # Отправляем отдельное сообщение с кнопкой "Рассчитать"
+    await callback.message.answer("Теперь нажмите «Рассчитать» для получения рекомендации:", reply_markup=create_keyboard(
+        ("🚀 Рассчитать", "quiz_calculate")
+    ))
+    
+    await state.set_state(UserStates.waiting_for_quiz_calculate)
+    await callback.answer()
+
+@dp.callback_query(lambda c: c.data == "quiz_calculate")
+async def handle_quiz_calculate(callback: CallbackQuery, state: FSMContext):
+    """Обработка нажатия кнопки «Рассчитать»"""
+    user_id = callback.from_user.id
+    
+    # Показываем обработку
+    processing_msg = await callback.message.edit_text("⏳ Рассчитываем размер… (~5 сек)")
     
     # Рассчитываем размер на основе квиза
     quiz_result = calculate_quiz_size(user_id)
@@ -400,6 +543,7 @@ async def handle_comfort_choice(callback: CallbackQuery, state: FSMContext):
         # Сохраняем рекомендацию
         user_data[user_id]['last_recommendation'] = quiz_result
         
+        # Показываем результат
         result_text = (
             f"✔️ Рекомендуемый размер: **{quiz_result['size']}**\n"
             f"Подойдёт модель:\n"
@@ -412,10 +556,10 @@ async def handle_comfort_choice(callback: CallbackQuery, state: FSMContext):
             ("❌ Не подошло", "feedback_bad")
         )
         
-        await callback.message.edit_text(result_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
+        await processing_msg.edit_text(result_text, reply_markup=keyboard, parse_mode=ParseMode.MARKDOWN)
         await state.set_state(UserStates.waiting_for_feedback)
     else:
-        await callback.message.edit_text("Ошибка при расчете размера. Попробуйте еще раз.")
+        await processing_msg.edit_text("Ошибка при расчете размера. Попробуйте еще раз.")
     
     await callback.answer()
 
@@ -488,6 +632,8 @@ async def send_photos_to_api(user_id: int) -> Optional[Dict[str, str]]:
         logging.error(f"Ошибка при отправке на API: {e}")
         return None
 
+
+
 def parse_api_response_for_size(data: Dict[str, Any]) -> Dict[str, str]:
     """Парсит ответ API для получения размера бюстгальтера"""
     try:
@@ -516,25 +662,45 @@ def calculate_quiz_size(user_id: int) -> Optional[Dict[str, str]]:
         underbust = quiz_data['underbust']
         bust = quiz_data['bust']
         
-        # Простая логика определения размера (заглушка)
-        cup_size = bust - underbust
-        if cup_size <= 10:
-            cup = "A"
-        elif cup_size <= 12:
-            cup = "B"
-        elif cup_size <= 14:
-            cup = "C"
+        # Если есть текущий размер, используем его как основу
+        if 'current_size' in quiz_data and quiz_data['current_size']:
+            size = quiz_data['current_size']
         else:
-            cup = "D"
+            # Рассчитываем размер на основе измерений
+            cup_size = bust - underbust
+            if cup_size <= 10:
+                cup = "A"
+            elif cup_size <= 12:
+                cup = "B"
+            elif cup_size <= 14:
+                cup = "C"
+            elif cup_size <= 16:
+                cup = "D"
+            else:
+                cup = "E"
+            
+            band_size = underbust
+            if band_size < 70:
+                band_size = 70
+            elif band_size > 90:
+                band_size = 90
+            
+            size = f"{band_size}{cup} EU"
         
-        band_size = underbust
-        if band_size < 70:
-            band_size = 70
-        elif band_size > 90:
-            band_size = 90
+        # Выбираем модель на основе предпочтений
+        bra_type = quiz_data.get('bra_type', 'classic')
+        priority = quiz_data.get('priority', 'comfort')
+        skin_tone = quiz_data.get('skin_tone', 'light')
         
-        size = f"{band_size}{cup} EU"
-        model = "SENS SoftTouch Classic (беж), код 12345678"
+        if bra_type == 'bralette':
+            model = "SENS Bralette Comfort (беж), код 12345678"
+        elif bra_type == 'sport':
+            model = "SENS Sport Active (черный), код 12345679"
+        elif bra_type == 'pushup':
+            model = "SENS Push-up Delight (беж), код 12345680"
+        else:  # classic
+            model = "SENS SoftTouch Classic (беж), код 12345678"
+        
         link = f"{WILDBERRIES_BASE_URL}12345678"
         
         return {
