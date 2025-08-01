@@ -4,8 +4,10 @@ import sys
 import base64
 import json
 import requests
+import os
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher, html
 from aiogram.client.default import DefaultBotProperties
@@ -17,10 +19,39 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 import aiohttp
 
-TOKEN = '8175085117:AAH9h_xypx-tJ81j1XYarH9sRV2h99D6kJA'
-API_KEY = '54XhqXF46TjiEEkeQN511K10zAUfZUNYrWkgveUQZPc'
-ORG_ID = 'org_EkyEdbEB1UCmXvn1MUgTN' 
-API_URL = f"https://platform.bodygram.com/api/orgs/{ORG_ID}/scans" 
+# Загружаем переменные окружения
+load_dotenv()
+
+# Конфигурация из переменных окружения
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+API_KEY = os.getenv('BODYGRAM_API_KEY')
+ORG_ID = os.getenv('BODYGRAM_ORG_ID')
+API_URL = os.getenv('BODYGRAM_API_URL', f"https://platform.bodygram.com/api/orgs/{ORG_ID}/scans")
+
+# Настройки бота
+BOT_NAME = os.getenv('BOT_NAME', 'SENS Fit Bot')
+BOT_DESCRIPTION = os.getenv('BOT_DESCRIPTION', 'Telegram bot for SENS Fit bra size fitting')
+
+# Контактная информация
+SUPPORT_EMAIL = os.getenv('SUPPORT_EMAIL', 'support@sensfit.com')
+PRIVACY_EMAIL = os.getenv('PRIVACY_EMAIL', 'privacy@sensfit.com')
+
+# Ссылки на товары
+WILDBERRIES_BASE_URL = os.getenv('WILDBERRIES_BASE_URL', 'https://www.wildberries.ru/catalog/')
+OZON_BASE_URL = os.getenv('OZON_BASE_URL', 'https://www.ozon.ru/product/')
+
+# Значения по умолчанию
+DEFAULT_AGE = int(os.getenv('DEFAULT_AGE', '25'))
+DEFAULT_WEIGHT = int(os.getenv('DEFAULT_WEIGHT', '60000'))
+DEFAULT_GENDER = os.getenv('DEFAULT_GENDER', 'female')
+
+# Проверяем обязательные переменные
+if not TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN не установлен в .env файле")
+if not API_KEY:
+    raise ValueError("BODYGRAM_API_KEY не установлен в .env файле")
+if not ORG_ID:
+    raise ValueError("BODYGRAM_ORG_ID не установлен в .env файле")
 
 # Состояния FSM
 class UserStates(StatesGroup):
@@ -53,7 +84,7 @@ def create_keyboard(*buttons: tuple[str, str]) -> InlineKeyboardMarkup:
 async def help_command(message: Message):
     """Команда помощи"""
     help_text = (
-        "🤖 SENS Fit Bot - подбор бюстгальтера\n\n"
+        f"🤖 {BOT_NAME} - подбор бюстгальтера\n\n"
         "Команды:\n"
         "/start - начать подбор размера\n"
         "/myfit - показать последнюю рекомендацию\n"
@@ -97,7 +128,7 @@ async def privacy_command(message: Message):
         "• Данные используются только для подбора размера\n"
         "• Мы не передаем данные третьим лицам\n"
         "• Соблюдаем 152-ФЗ и GDPR\n\n"
-        "По вопросам: privacy@sensfit.com"
+        f"По вопросам: {PRIVACY_EMAIL}"
     )
     await message.answer(privacy_text)
 
@@ -435,10 +466,10 @@ async def send_photos_to_api(user_id: int) -> Optional[Dict[str, str]]:
         data = {
             "customScanId": f"scan_{user_id}",
             "photoScan": {
-                "age": 25,  # Можно добавить в квиз
-                "weight": 60000,  # Можно добавить в квиз
+                "age": DEFAULT_AGE,
+                "weight": DEFAULT_WEIGHT,
                 "height": height * 10,  # API ожидает в мм
-                "gender": "female",
+                "gender": DEFAULT_GENDER,
                 "frontPhoto": front_photo_base64,
                 "rightPhoto": profile_photo_base64,
             },
@@ -467,7 +498,7 @@ def parse_api_response_for_size(data: Dict[str, Any]) -> Dict[str, str]:
         # Простая логика определения размера (заглушка)
         size = "75C EU (34C US)"
         model = "SENS Seamless SoftTouch, цвет Nude"
-        link = "https://www.wildberries.ru/catalog/12345678"
+        link = f"{WILDBERRIES_BASE_URL}12345678"
         
         return {
             'size': size,
@@ -504,7 +535,7 @@ def calculate_quiz_size(user_id: int) -> Optional[Dict[str, str]]:
         
         size = f"{band_size}{cup} EU"
         model = "SENS SoftTouch Classic (беж), код 12345678"
-        link = "https://www.wildberries.ru/catalog/12345678"
+        link = f"{WILDBERRIES_BASE_URL}12345678"
         
         return {
             'size': size,

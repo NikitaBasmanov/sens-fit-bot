@@ -1,0 +1,26 @@
+# Telegram Bot Configuration
+TELEGRAM_BOT_TOKEN=8175085117:AAH9h_xypx-tJ81j1XYarH9sRV2h99D6kJA
+
+# Bodygram API Configuration
+BODYGRAM_API_KEY=54XhqXF46TjiEEkeQN511K10zAUfZUNYrWkgveUQZPc
+BODYGRAM_ORG_ID=org_EkyEdbEB1UCmXvn1MUgTN
+
+# API URLs
+BODYGRAM_API_URL=https://platform.bodygram.com/api/orgs/{ORG_ID}/scans
+
+# Bot Settings
+BOT_NAME=SENS Fit Bot
+BOT_DESCRIPTION=Telegram bot for SENS Fit bra size fitting
+
+# Contact Information
+SUPPORT_EMAIL=support@sensfit.com
+PRIVACY_EMAIL=privacy@sensfit.com
+
+# Product Links
+WILDBERRIES_BASE_URL=https://www.wildberries.ru/catalog/
+OZON_BASE_URL=https://www.ozon.ru/product/
+
+# Default Values
+DEFAULT_AGE=25
+DEFAULT_WEIGHT=60000
+DEFAULT_GENDER=female 
